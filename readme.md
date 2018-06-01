@@ -25,4 +25,6 @@ Read data and do the cache... Done.
 
 Please ignore this part.
 
++ 2018.6.1 Use this to sync with server side:
+`rsync -av --filter=':- .gitignore' MNIST-Toy-Machine/ ubuntu@49.52.5.92:/home/ubuntu/mnist`
 + 2018.5.31 Boot. MLP reached 0.938 using only first 10k training data.

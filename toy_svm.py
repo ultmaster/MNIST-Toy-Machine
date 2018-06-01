@@ -1,5 +1,5 @@
 from sklearn import svm
-from read_data import *
+from data import *
 
 def score(a, b):
     assert len(a) == len(b)

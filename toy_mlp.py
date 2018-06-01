@@ -1,7 +1,7 @@
 from sklearn import svm
 from sklearn.neural_network import MLPClassifier
 
-from read_data import *
+from data import *
 
 def score(a, b):
     assert len(a) == len(b)
@@ -15,16 +15,16 @@ def process(image):
     return xf
 
 
-X = []
-for idx, x in enumerate(train_images[:10000]):
-    X.append(process(x))
-    if idx % 1000 == 0:
-        print(idx)
+# X = []
+# for idx, x in enumerate(train_images):
+#     X.append(process(x))
+#     if idx % 1000 == 0:
+#         print(idx)
 # print('ok')
 clf = MLPClassifier()
-clf.fit(X, train_labels[:10000])
+clf.fit(train_images, train_labels)
 
-X = []
-for x in test_images:
-    X.append(process(x))
-print(score(clf.predict(X), test_labels))
+# X = []
+# for x in test_images:
+#     X.append(process(x))
+print(score(clf.predict(test_images), test_labels))

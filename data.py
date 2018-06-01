@@ -6,6 +6,7 @@ import os
 
 import sys
 
+from cache import cached
 
 """
 Use
@@ -30,24 +31,50 @@ def next_image(fin):
     return s
 
 
+def convert_images_to_features(images):
+    features = {}
+    for key in range(row_num * col_num):
+        features[str(key)] = images[:, key]
+    return features
+
+
+@cached("train-images-flatten-pickle")
+def train_image_flatten():
+    train_images = []
+    for _ in range(train_size):
+        train_images.append(next_image(f).flatten())
+    return np.asarray(train_images)
+
+
+@cached("train-image-feature-dict-pickle")
+def train_image_feature_dict(train_images):
+    return convert_images_to_features(train_images)
+
+
+@cached("test-images-flatten-pickle")
+def test_image_flatten():
+    test_images = []
+    for _ in range(test_size):
+        test_images.append(next_image(f).flatten())
+    return np.asarray(test_images)
+
+
+@cached("test-image-feature-dict-pickle")
+def test_image_feature_dict(test_images):
+    return convert_images_to_features(test_images)
+
+
 os.makedirs("tmp", exist_ok=True)
 
 with gzip.open('data/train-images-idx3-ubyte.gz', 'rb') as f:
     assert next_int(f) == 2051
     train_size = next_int(f)
-    train_images = []
     row_num = next_int(f)
     col_num = next_int(f)
-    pickle_path = "tmp/train-images-pickle"
-    if os.path.exists(pickle_path):
-        with open(pickle_path, "rb") as f:
-            train_images = pickle.load(f)
-    else:
-        print("Train image cache not found. Rebuilding...", file=sys.stderr)
-        for _ in range(train_size):
-            train_images.append(next_image(f))
-        with open(pickle_path, "wb") as f:
-            pickle.dump(train_images, f)
+
+    train_images = train_image_flatten()
+    train_images_features = train_image_feature_dict(train_images)
+
     assert len(train_images) == train_size
 
 with gzip.open('data/train-labels-idx1-ubyte.gz', 'rb') as f:
@@ -61,19 +88,12 @@ with gzip.open('data/train-labels-idx1-ubyte.gz', 'rb') as f:
 with gzip.open('data/t10k-images-idx3-ubyte.gz', 'rb') as f:
     assert next_int(f) == 2051
     test_size = next_int(f)
-    test_images = []
     assert row_num == next_int(f)
     assert col_num == next_int(f)
-    pickle_path = "tmp/test-images-pickle"
-    if os.path.exists(pickle_path):
-        with open(pickle_path, "rb") as f:
-            test_images = pickle.load(f)
-    else:
-        print("Test image cache not found. Rebuilding...", file=sys.stderr)
-        for _ in range(test_size):
-            test_images.append(next_image(f))
-        with open(pickle_path, "wb") as f:
-            pickle.dump(test_images, f)
+
+    test_images = test_image_flatten()
+    test_images_features = test_image_feature_dict(test_images)
+
     assert len(test_images) == test_size
 
 with gzip.open('data/t10k-labels-idx1-ubyte.gz', 'rb') as f:

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import tensorflow as tf
 import time
@@ -17,6 +19,7 @@ class VariationalAutoEncoder(object):
         # tf Graph input
         self._initialize_network(**self.network_architecture)
         self.x = tf.placeholder(tf.float32, shape=[None, self.image_width * self.image_width], name="input")
+        self.training = tf.placeholder(tf.bool, shape=(), name='apply_dropout')
 
         # Create autoencoder network
         self._create_network()
@@ -26,6 +29,7 @@ class VariationalAutoEncoder(object):
 
         # Initializing the tensor flow variables
         init = tf.global_variables_initializer()
+        self.saver = tf.train.Saver()  # to save models
 
         # Launch the session
         self.sess = tf.InteractiveSession()
@@ -64,21 +68,23 @@ class VariationalAutoEncoder(object):
                 inputs=self.input_layers[i - 1],
                 units=self.n_hidden_units,
                 activation=tf.nn.softplus,
-                kernel_initializer=tf.contrib.layers.xavier_initializer(),
             )
+        # self.recog_dropout_layer = tf.layers.dropout(
+        #     inputs=self.input_layers[-1],
+        #     rate=0,
+        #     training=self.training,
+        # )
         self.z_mean = tf.layers.dense(
             inputs=self.input_layers[-1],
             units=self.n_z,
             activation=None,
             name="z_mean",
-            kernel_initializer=tf.contrib.layers.xavier_initializer(),
         )
         self.z_log_sigma_sq = tf.layers.dense(
             inputs=self.input_layers[-1],
             units=self.n_z,
             activation=None,
             name="z_log_sigma_sq",
-            kernel_initializer=tf.contrib.layers.xavier_initializer(),
         )
 
     def _generator_network(self):
@@ -91,13 +97,11 @@ class VariationalAutoEncoder(object):
                 inputs=self.output_layers[i - 1],
                 units=self.n_hidden_units,
                 activation=tf.nn.softplus,
-                kernel_initializer=tf.contrib.layers.xavier_initializer(),
             )
         self.x_reconstr_mean = tf.layers.dense(
             inputs=self.output_layers[-1],
             units=self.image_width * self.image_width,
             activation=tf.nn.sigmoid,
-            kernel_initializer=tf.contrib.layers.xavier_initializer(),
         )
 
     def _create_loss_optimizer(self):
@@ -123,14 +127,14 @@ class VariationalAutoEncoder(object):
                                                - tf.exp(self.z_log_sigma_sq), 1)
 
             self.cost = tf.reduce_mean(reconstr_loss + latent_loss, name="total_cost")  # average over batch
-        self.optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
     def partial_fit(self, X):
         """
         Train model based on mini-batch of input data.
         Return cost of mini-batch.
         """
-        opt, cost = self.sess.run((self.optimizer, self.cost), feed_dict={self.x: X})
+        opt, cost = self.sess.run((self.optimizer, self.cost), feed_dict={self.x: X, self.training: True})
         return cost
 
     def transform(self, X):
@@ -138,7 +142,7 @@ class VariationalAutoEncoder(object):
         Transform data by mapping it into the latent space."""
         # Note: This maps to mean of distribution, we could alternatively
         # sample from Gaussian distribution
-        return self.sess.run(self.z_mean, feed_dict={self.x: X})
+        return self.sess.run(self.z_mean, feed_dict={self.x: X, self.training: False})
 
     def generate(self, z_mu=None):
         """
@@ -152,23 +156,32 @@ class VariationalAutoEncoder(object):
         # Note: This maps to mean of distribution, we could alternatively
         # sample from Gaussian distribution
         return self.sess.run(self.x_reconstr_mean,
-                             feed_dict={self.z: z_mu})
+                             feed_dict={self.z: z_mu, self.training: False})
 
     def reconstruct(self, X):
         """ Use VAE to reconstruct given data. """
         return self.sess.run(self.x_reconstr_mean,
-                             feed_dict={self.x: X})
+                             feed_dict={self.x: X, self.training: False})
+
+    def save(self, path):
+        save_path = self.saver.save(self.sess, path)
+        print("Model has been saved to: %s" % save_path)
+
+    def load(self, path):
+        self.saver.restore(self.sess, path)
 
 
-def train(network_architecture, learning_rate=0.001,
-          batch_size=100, training_epochs=10, display_step=1):
-    vae = VariationalAutoEncoder(network_architecture,
-                                 learning_rate=learning_rate,
-                                 batch_size=batch_size)
+def train(cls, network_architecture, learning_rate=0.001,
+          batch_size=100, training_epochs=10, display_step=1, saving_step=10):
+    model_name = cls.__name__ + "." + ''.join(filter(lambda x: x.isdigit(), datetime.now().isoformat()))
+
+    vae = cls(network_architecture,
+              learning_rate=learning_rate,
+              batch_size=batch_size)
     # Training cycle
     train_x, train_y = mnist.train_32_flat_labeled()
     n_samples = train_x.shape[0]
-    w = network_architecture["n_input"]
+    w = network_architecture["n_width"]
 
     t0 = time.time()
     for epoch in range(training_epochs):
@@ -187,14 +200,7 @@ def train(network_architecture, learning_rate=0.001,
             print("Epoch:", '%04d' % (epoch + 1),
                   "Cost:", "{:.9f}".format(avg_cost),
                   "Time:", "%.3f" % (t1 - t0))
+        if epoch % saving_step == 0:
+            vae.save("tmp/" + model_name + ".step%d" % epoch)
+
     return vae
-
-
-network_architecture = {
-    "n_width": 32,
-    "n_z": 20,  # dimensionality of latent space
-    "n_hidden_units": 500,
-    "n_layers": 2
-}
-
-vae = train(network_architecture, training_epochs=30)

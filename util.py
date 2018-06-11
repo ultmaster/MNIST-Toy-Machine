@@ -1,4 +1,5 @@
 import time
+import sys
 
 
 class Timer(object):

@@ -42,7 +42,7 @@ class VariationalAutoEncoder(object):
         self._recognition_network()
 
         # Draw one sample z from Gaussian distribution
-        eps = tf.random_normal((self.batch_size, self.n_z), 0, 1, dtype=tf.float32)
+        eps = tf.random_normal((tf.shape(self.x)[0], self.n_z), 0, 1, dtype=tf.float32)
         # z = mu + sigma * epsilon
         self.z = tf.add(self.z_mean, tf.multiply(tf.exp(self.z_log_sigma_sq / 2), eps))
 
@@ -104,6 +104,11 @@ class VariationalAutoEncoder(object):
             activation=tf.nn.sigmoid,
         )
 
+    def _reconstruct_loss(self):
+        self.reconstruct_loss = -tf.reduce_sum(self.x * tf.log(1e-10 + self.x_reconstr_mean) +
+                                               (1 - self.x) * tf.log(1e-10 + 1 - self.x_reconstr_mean), 1)
+        return self.reconstruct_loss
+
     def _create_loss_optimizer(self):
         with tf.name_scope("cost"):
             # The loss is composed of two terms:
@@ -114,8 +119,7 @@ class VariationalAutoEncoder(object):
             #     for reconstructing the input when the activation in latent
             #     is given.
             # Adding 1e-10 to avoid evaluation of log(0.0)
-            reconstr_loss = -tf.reduce_sum(self.x * tf.log(1e-10 + self.x_reconstr_mean)
-                               + (1 - self.x) * tf.log(1e-10 + 1 - self.x_reconstr_mean), 1)
+            reconstr_loss = self._reconstruct_loss()
 
             # 2.) The latent loss, which is defined as the KL divergence
             #     between the distribution in latent space induced by the encoder on

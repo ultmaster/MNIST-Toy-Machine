@@ -4,8 +4,8 @@ from vae_cnn import ConvolutionalVariationalAutoEncoder
 network_architecture = {
     "n_width": 32,
     "n_z": 20,  # dimensionality of latent space
-    "n_hidden_units": 1024,
-    "n_layers": 2
+    "n_hidden_units": 500,
+    "n_layers": 3
 }
 
 vae = train(ConvolutionalVariationalAutoEncoder, network_architecture, training_epochs=31)

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import tensorflow as tf
 
@@ -17,8 +19,10 @@ class CVAE(VariationalAutoEncoder):
         self.image_width = n_width
         self.n_hidden_units = n_hidden_units
         self.n_layers = n_layers
+        self.input_dropout = [None for i in range(self.n_layers + 2)]
+        self.output_dropout = [None for i in range(self.n_layers + 2)]
         self.input_layers = [None for i in range(self.n_layers + 2)]
-        self.output_layers = [None for i in range(self.n_layers + 1)]
+        self.output_layers = [None for i in range(self.n_layers + 2)]
 
     def _create_network(self):
         with tf.name_scope("labels"):
@@ -34,14 +38,19 @@ class CVAE(VariationalAutoEncoder):
         # Generate probabilistic encoder (recognition network), which
         # maps inputs onto a normal distribution in latent space.
         # The transformation is parametrized and can be learned.
-        self.input_layers[0] = tf.layers.flatten(self.x)
+        self.input_dropout[0] = tf.layers.flatten(self.x)
         for i in range(1, self.n_layers + 1):
             self.input_layers[i] = tf.layers.dense(
-                inputs=self.input_layers[i - 1],
+                inputs=tf.concat([self.input_dropout[i - 1], self.input_label], 1),
                 units=self.n_hidden_units,
                 activation=tf.nn.softplus,
             )
-        self.dense_with_label = tf.concat([self.input_layers[self.n_layers], self.input_label], 1)
+            self.input_dropout[i] = tf.layers.dropout(
+                inputs=self.input_layers[i],
+                rate=0.1,
+                training=self.training,
+            )
+        self.dense_with_label = tf.concat([self.input_dropout[self.n_layers], self.input_label], 1)
         self.z_mean = tf.layers.dense(
             inputs=self.dense_with_label,
             units=self.n_z,
@@ -59,15 +68,20 @@ class CVAE(VariationalAutoEncoder):
         # Generate probabilistic decoder (decoder network), which
         # maps points in latent space onto a Bernoulli distribution in data space.
         # The transformation is parametrized and can be learned.
-        self.output_layers[0] = tf.concat([self.z, self.input_label], 1)
+        self.output_dropout[0] = tf.concat([self.z, self.input_label], 1)
         for i in range(1, self.n_layers + 1):
             self.output_layers[i] = tf.layers.dense(
-                inputs=self.output_layers[i - 1],
+                inputs=tf.concat([self.output_dropout[i - 1], self.input_label], 1),
                 units=self.n_hidden_units,
                 activation=tf.nn.softplus,
             )
+            self.output_dropout[i] = tf.layers.dropout(
+                inputs=self.output_layers[i],
+                rate=0.1,
+                training=self.training,
+            )
         self.x_reconstr_mean = tf.layers.dense(
-            inputs=self.output_layers[-1],
+            inputs=self.output_dropout[self.n_layers],
             units=self.image_width * self.image_width,
             activation=tf.nn.sigmoid,
         )
@@ -129,6 +143,7 @@ import time
 
 def train_cvae(network_architecture, learning_rate=0.001,
           batch_size=100, training_epochs=10, display_step=1, saving_step=10):
+    model_name = "CVAE." + ''.join(filter(lambda x: x.isdigit(), datetime.now().isoformat()))
     vae = CVAE(network_architecture,
               learning_rate=learning_rate,
               batch_size=batch_size)
@@ -158,6 +173,7 @@ def train_cvae(network_architecture, learning_rate=0.001,
         if epoch % saving_step == 0:
             test_x, test_y = mnist.test_32_flat_labeled()
             print("Accuracy:", vae.score(test_x, test_y))
+            vae.save("tmp/" + model_name + ".step%d" % epoch)
 
     return vae
 
@@ -168,4 +184,4 @@ network_architecture = {
     "n_layers": 3,
 }
 
-vae = train_cvae(network_architecture, training_epochs=30)
+vae = train_cvae(network_architecture, saving_step=5, training_epochs=200)

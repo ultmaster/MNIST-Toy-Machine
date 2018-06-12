@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import tensorflow as tf
 
@@ -12,12 +14,13 @@ class CVAE(VariationalAutoEncoder):
         self.y = tf.placeholder(tf.int64, shape=(None,), name="y")
         super().__init__(network_architecture, learning_rate=learning_rate, batch_size=batch_size)
 
-    def _initialize_network(self, n_z, n_width, n_hidden_units, **kwargs):
+    def _initialize_network(self, n_z, n_width, n_hidden_units, n_layers, **kwargs):
         self.n_z = n_z
         self.image_width = n_width
         self.n_hidden_units = n_hidden_units
-        self.input_layers = [None for i in range(5)]
-        self.output_layers = [None for i in range(5)]
+        self.n_layers = n_layers
+        self.input_layers = [None for i in range(self.n_layers + 2)]
+        self.output_layers = [None for i in range(self.n_layers + 2)]
 
     def _create_network(self):
         with tf.name_scope("labels"):
@@ -33,31 +36,32 @@ class CVAE(VariationalAutoEncoder):
         # Generate probabilistic encoder (recognition network), which
         # maps inputs onto a normal distribution in latent space.
         # The transformation is parametrized and can be learned.
-        w_init = tf.contrib.layers.variance_scaling_initializer()
-
-        self.input_layers[0] = tf.concat([tf.layers.flatten(self.x), self.input_label], 1)
-        self.input_layers[1] = tf.layers.dense(
-            inputs=self.input_layers[0],
-            activation=tf.nn.elu,
-            units=self.n_hidden_units,
-            # kernel_initializer=w_init,
-        )
-        self.input_layers[2] = tf.layers.dense(
-            inputs=self.input_layers[1],
-            activation=tf.nn.tanh,
-            units=self.n_hidden_units,
-            # kernel_initializer=w_init,
-        )
+        self.input_layers[0] = tf.reshape(self.x, [-1, self.image_width, self.image_width, 1])
+        self.ft_size = 8
+        self.conv_size = self.image_width
+        for i in range(1, self.n_layers + 1):
+            self.conv_size //= 2
+            self.ft_size *= 2
+            self.input_layers[i] = tf.layers.conv2d(
+                inputs=self.input_layers[i - 1],
+                kernel_size=3,
+                strides=2,
+                filters=self.ft_size,
+                padding="same",
+                activation=tf.nn.softplus,
+            )
+        self.dense_with_label = tf.concat([tf.layers.flatten(self.input_layers[self.n_layers]),
+                                           self.input_label], 1)
         self.z_mean = tf.layers.dense(
-            inputs=self.input_layers[2],
+            inputs=self.dense_with_label,
             units=self.n_z,
             activation=None,
             name="z_mean",
         )
         self.z_log_sigma_sq = tf.layers.dense(
-            inputs=self.input_layers[2],
+            inputs=self.dense_with_label,
             units=self.n_z,
-            activation=tf.nn.softplus,
+            activation=None,
             name="z_log_sigma_sq",
         )
 
@@ -65,26 +69,29 @@ class CVAE(VariationalAutoEncoder):
         # Generate probabilistic decoder (decoder network), which
         # maps points in latent space onto a Bernoulli distribution in data space.
         # The transformation is parametrized and can be learned.
-        w_init = tf.contrib.layers.variance_scaling_initializer()
+        self.output_layers[0] = tf.reshape(tf.layers.dense(
+            inputs=tf.concat([self.z, self.input_label], 1),
+            units=self.conv_size ** 2 * self.ft_size),
+            (-1, self.conv_size, self.conv_size, self.ft_size))
 
-        self.output_layers[0] = tf.concat([self.z, self.input_label], 1)
-        self.output_layers[1] = tf.layers.dense(
-            inputs=self.output_layers[0],
-            activation=tf.nn.tanh,
-            units=self.n_hidden_units,
-            # kernel_initializer=w_init,
-        )
-        self.output_layers[2] = tf.layers.dense(
-            inputs=self.output_layers[1],
-            activation=tf.nn.elu,
-            units=self.n_hidden_units,
-            # kernel_initializer=w_init,
-        )
-        self.x_reconstr_mean = tf.layers.dense(
-            inputs=self.output_layers[2],
-            units=self.image_width * self.image_width,
+        for i in range(1, self.n_layers + 1):
+            self.ft_size //= 2
+            self.output_layers[i] = tf.layers.conv2d_transpose(
+                inputs=self.output_layers[i - 1],
+                kernel_size=3,
+                strides=2,
+                filters=self.ft_size,
+                padding="same",
+                activation=tf.nn.softplus,
+            )
+        self.x_reconstr_mean = tf.layers.flatten(tf.layers.conv2d(
+            inputs=self.output_layers[self.n_layers],
+            kernel_size=2,
+            strides=1,
+            filters=1,
+            padding="same",
             activation=tf.nn.sigmoid,
-        )
+        ))
 
     def partial_fit_with_y(self, X, y):
         """
@@ -143,6 +150,7 @@ import time
 
 def train_cvae(network_architecture, learning_rate=0.001,
           batch_size=100, training_epochs=10, display_step=1, saving_step=10):
+    model_name = "CVAE." + ''.join(filter(lambda x: x.isdigit(), datetime.now().isoformat()))
     vae = CVAE(network_architecture,
               learning_rate=learning_rate,
               batch_size=batch_size)
@@ -172,6 +180,7 @@ def train_cvae(network_architecture, learning_rate=0.001,
         if epoch % saving_step == 0:
             test_x, test_y = mnist.test_32_flat_labeled()
             print("Accuracy:", vae.score(test_x, test_y))
+            vae.save("tmp/" + model_name + ".step%d" % epoch)
 
     return vae
 
@@ -179,6 +188,7 @@ network_architecture = {
     "n_width": 32,
     "n_z": 20,  # dimensionality of latent space
     "n_hidden_units": 500,
+    "n_layers": 3,
 }
 
-vae = train_cvae(network_architecture, training_epochs=100)
+vae = train_cvae(network_architecture, saving_step=5, training_epochs=200)

@@ -8,5 +8,5 @@ network_architecture = {
     "n_layers": 3
 }
 
-vae = train(ConvolutionalVariationalAutoEncoder, network_architecture, training_epochs=31)
+vae = train(ConvolutionalVariationalAutoEncoder, network_architecture, training_epochs=300)
 # vae = train(VariationalAutoEncoder, network_architecture, training_epochs=31)

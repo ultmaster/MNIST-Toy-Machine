@@ -1,30 +1,35 @@
 # MNIST Toy Machine
 
-_CS420 Machine Learning Course Project_
+CS420 Course Project.
 
-## Dataset
+## Dependencies
 
-Dataset from [here](http://yann.lecun.com/exdb/mnist/). It seemed that millions of people have
-already spent billions of dollars doing trillions of research on it. 
+* Python 3.5
+* Tensorflow 1.8
+* sklearn 0.19
+* numpy, pandas, ...
 
-~~Improvement of performance seems ridiculously far out of reach.~~
+## Starting
 
-## Preprocessing
+Run `prepare_data.py` as your first step to generate data preprocessing cache.
 
-### Read
+## What do we have?
 
-Read data and do the cache... Done.
+* kNN / SVM / PCA Model
+* CNN Model
+* VAE (with and without conv)
+* CVAE
 
-## Plans
+## What are the directories?
 
-+ Do the deep learning?
-+ Use SVM or similar?
-+ ~~Fill the report with trash.~~
+* `notebook` has some visualization code.
+* `old` is some unsuccessful models.
+* `data` holds the MNIST in its standard version and modified one.
 
-## Scratch
+## More?
 
-Please ignore this part.
+Read the report / slides from the `report` directory for details.
 
-+ 2018.6.1 Use this to sync with server side:
-`rsync -av --filter=':- .gitignore' MNIST-Toy-Machine/ ubuntu@49.52.5.92:/home/ubuntu/mnist`
-+ 2018.5.31 Boot. MLP reached 0.938 using only first 10k training data.
+## Cast
+
+716030210013, 716030210014 @ SJTU 2018

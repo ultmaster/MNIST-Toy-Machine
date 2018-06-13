@@ -12,6 +12,8 @@ tf.logging.set_verbosity(tf.logging.INFO)
 class VariationalAutoEncoder(object):
 
     def __init__(self, network_architecture, learning_rate=0.001, batch_size=100):
+        tf.reset_default_graph()
+
         self.network_architecture = network_architecture
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -20,6 +22,7 @@ class VariationalAutoEncoder(object):
         self._initialize_network(**self.network_architecture)
         self.x = tf.placeholder(tf.float32, shape=[None, self.image_width * self.image_width], name="input")
         self.training = tf.placeholder(tf.bool, shape=(), name='apply_dropout')
+        self.y = tf.placeholder(tf.int64, shape=(None,), name="y")
 
         # Create autoencoder network
         self._create_network()
@@ -130,6 +133,7 @@ class VariationalAutoEncoder(object):
             latent_loss = -0.5 * tf.reduce_sum(1 + self.z_log_sigma_sq - tf.square(self.z_mean)
                                                - tf.exp(self.z_log_sigma_sq), 1)
 
+            # self.cost = tf.add(reconstr_loss, latent_loss)
             self.cost = tf.reduce_mean(reconstr_loss + latent_loss, name="total_cost")  # average over batch
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
@@ -196,13 +200,13 @@ def train(cls, network_architecture, learning_rate=0.001,
             batch_xs = batch_xs.reshape((-1, w * w))
 
             cost = vae.partial_fit(batch_xs)
-            avg_cost += cost / n_samples * batch_size
+            avg_cost += np.mean(cost) / n_samples * batch_size
         t1 = time.time()
 
         # Display logs per epoch step
         if epoch % display_step == 0:
             print("Epoch:", '%04d' % (epoch + 1),
-                  "Cost:", "{:.9f}".format(avg_cost),
+                  "Cost:", "%.9f" % avg_cost,
                   "Time:", "%.3f" % (t1 - t0))
         if epoch % saving_step == 0:
             vae.save("tmp/" + model_name + ".step%d" % epoch)

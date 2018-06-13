@@ -10,10 +10,6 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 class CVAE(VariationalAutoEncoder):
 
-    def __init__(self, network_architecture, learning_rate=0.001, batch_size=100):
-        self.y = tf.placeholder(tf.int64, shape=(None,), name="y")
-        super().__init__(network_architecture, learning_rate=learning_rate, batch_size=batch_size)
-
     def _initialize_network(self, n_z, n_width, n_hidden_units, n_layers, **kwargs):
         self.n_z = n_z
         self.image_width = n_width
@@ -168,7 +164,7 @@ def train_cvae(network_architecture, learning_rate=0.001,
         # Display logs per epoch step
         if epoch % display_step == 0:
             print("Epoch:", '%04d' % (epoch + 1),
-                  "Cost:", "{:.9f}".format(avg_cost),
+                  "Cost:", "%.9f" % avg_cost,
                   "Time:", "%.3f" % (t1 - t0))
         if epoch % saving_step == 0:
             test_x, test_y = mnist.test_32_flat_labeled()
@@ -177,11 +173,13 @@ def train_cvae(network_architecture, learning_rate=0.001,
 
     return vae
 
-network_architecture = {
-    "n_width": 32,
-    "n_z": 20,  # dimensionality of latent space
-    "n_hidden_units": 500,
-    "n_layers": 3,
-}
 
-vae = train_cvae(network_architecture, saving_step=5, training_epochs=200)
+def main():
+    network_architecture = {
+        "n_width": 32,
+        "n_z": 20,  # dimensionality of latent space
+        "n_hidden_units": 500,
+        "n_layers": 3,
+    }
+
+    vae = train_cvae(network_architecture, saving_step=5, training_epochs=200)

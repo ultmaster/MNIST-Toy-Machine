@@ -7,6 +7,7 @@ import time
 
 class ConvolutionNet:
     def __init__(self, image_width):
+        tf.reset_default_graph()
         self.image_width = image_width
 
         # input layer
@@ -85,16 +86,16 @@ class ConvolutionNet:
         saver.restore(self.sess, tf.train.latest_checkpoint(path))
 
 
-def main(training_size=None):
+def main(training_size=None, max_epochs=20, save=True):
     width = 32
     cnn = ConvolutionNet(width)
-    max_epochs = 20
     batch_size = 100
 
     # Training cycle
     train_x, train_y = mnist.train_32_flat_labeled(training_size)
     test_x, test_y = mnist.test_32_flat_labeled()
     n_samples = train_x.shape[0]
+    best_acc, best_timeout = 0, 2
 
     t0 = time.time()
     for epoch in range(max_epochs):
@@ -120,9 +121,24 @@ def main(training_size=None):
               "Time:", "%.3f" % (t1 - t0))
         # if epoch % 5 == 0:
         accuracy = cnn.score(test_x, test_y)
-        print("Accuracy:", accuracy)
-        cnn.save("tmp/cnn2.%d" % epoch)
+
+        if accuracy > best_acc:
+            best_acc = accuracy
+            best_timeout = 2
+        else:
+            best_timeout -= 1
+            if best_timeout <= 0:
+                print("Accuracy hasn't improved in last 2 steps. Quitting...")
+                break
+        print("Accuracy:", accuracy, "Best:", best_acc)
+
+        if save:
+            cnn.save("tmp/cnn2.%d" % epoch)
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    for n_samples in [1000, 2000, 4000, 8000, 16000, 32000, None]:
+        print("N_SAMPLES:", n_samples)
+        main(training_size=n_samples, save=False)
+

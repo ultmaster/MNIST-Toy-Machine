@@ -86,7 +86,7 @@ class ConvolutionNet:
         saver.restore(self.sess, tf.train.latest_checkpoint(path))
 
 
-def main(training_size=None, max_epochs=20, save=True):
+def main(training_size=None, max_epochs=20, save=True, display_step=1):
     width = 32
     cnn = ConvolutionNet(width)
     batch_size = 100
@@ -119,26 +119,27 @@ def main(training_size=None, max_epochs=20, save=True):
         # Display logs per epoch step
         print("Cost:", "%.9f" % avg_cost,
               "Time:", "%.3f" % (t1 - t0))
-        # if epoch % 5 == 0:
-        accuracy = cnn.score(test_x, test_y)
 
-        if accuracy > best_acc:
-            best_acc = accuracy
-            best_timeout = 2
-        else:
-            best_timeout -= 1
-            if best_timeout <= 0:
-                print("Accuracy hasn't improved in last 2 steps. Quitting...")
-                break
-        print("Accuracy:", accuracy, "Best:", best_acc)
+        if (epoch + 1) % display_step == 0:
+            accuracy = cnn.score(test_x, test_y)
+
+            if accuracy > best_acc:
+                best_acc = accuracy
+                best_timeout = 2
+            else:
+                best_timeout -= 1
+                if best_timeout <= 0:
+                    print("Accuracy hasn't improved in last 2 steps. Quitting...")
+                    break
+            print("Accuracy:", accuracy, "Best:", best_acc)
 
         if save:
             cnn.save("tmp/cnn2.%d" % epoch)
 
 
 if __name__ == "__main__":
-    # main()
-    for n_samples in [1000, 2000, 4000, 8000, 16000, 32000, None]:
-        print("N_SAMPLES:", n_samples)
-        main(training_size=n_samples, save=False)
+    main(save=False, display_step=5)
+    # for n_samples in [1000, 2000, 4000, 8000, 16000, 32000, None]:
+    #     print("N_SAMPLES:", n_samples)
+    #     main(training_size=n_samples, save=False)
 
